@@ -14,19 +14,25 @@ void vector_init(struct vector* v) {
     v->size = 0;
     v->values = malloc(v->capacity * sizeof(int));
     if (!v->values) {
-        return;
+        v->capacity = 0;
     }
 }
 
 bool vector_push_back(struct vector* v, int x) {
     int mult = 2;
+    size_t old_capacity = v->capacity;
     if (v->size >= v->capacity) {
-        if ((SIZE_MAX / mult) < v->capacity) {
+        if ((SIZE_MAX / mult) < old_capacity) {
             return false;
         }
-        v->capacity *= mult;
+        v->capacity = old_capacity * mult;
+        if ((SIZE_MAX / sizeof(int)) < v->capacity) {
+            v->capacity = old_capacity;
+            return false;
+        }
         v->values = realloc(v->values, v->capacity * sizeof(int));
         if (!v->values) {
+            v->capacity = old_capacity;
             return false;
         }
     }
