@@ -18,5 +18,6 @@ uLong calculate(FILE* input) {
         crc = crc32(crc, buffer, tmp_buf_len);
     }
 
+    free(buffer);
     return crc;
 }

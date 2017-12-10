@@ -23,6 +23,7 @@ int main(int argc, char** argv) {
                 continue;
             }
             crc.checksum = calculate(input);
+            fclose(input);
         }
 
         crc.path = argv[i];
