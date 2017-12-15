@@ -15,10 +15,6 @@ $(TARGET_DYNAMIC): $(SRCS:%.c=%.o)
 $(TARGET_STATIC): $(SRCS:%.c=%.o)
 	$(CC) $(CFLAGS) $(STATIC_FLAGS) -o $@ $(SRCS:%.c=%.o)
 
-main.o : calculate.h structure.h print.h
-calculate.o : calculate.h
-print.o : print.h
-
 .PHONY: clean all
 
 clean:

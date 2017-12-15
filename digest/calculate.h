@@ -3,7 +3,8 @@
 
 #include <stdio.h>
 #include <zconf.h>
+#include "structure.h"
 
-uLong calculate(FILE* input);
+int calculate(FILE*, struct file_checksum*);
 
 #endif //DIGEST_CALCULATE_H

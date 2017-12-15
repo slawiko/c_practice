@@ -6,7 +6,7 @@
 #include "print.h"
 
 int main(int argc, char** argv) {
-    int exit_code = 0;
+    int exit_code = 0, tmp_code = 0;
     if (argc == 1) {
         fprintf(stderr, "It's a program for CRC32 checksum calculating. Please specify paths to files, or any text.\n");
         return 2;
@@ -14,7 +14,8 @@ int main(int argc, char** argv) {
     struct file_checksum crc;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-") == 0) {
-            crc.checksum = calculate(stdin);
+            tmp_code = calculate(stdin, &crc);
+            exit_code = tmp_code != 0 ? tmp_code : exit_code;
         } else {
             FILE* input = fopen(argv[i], "rb");
             if (input == NULL) {
@@ -22,7 +23,8 @@ int main(int argc, char** argv) {
                 fprintf(stderr, "Error with file opening\n");
                 continue;
             }
-            crc.checksum = calculate(input);
+            tmp_code = calculate(input, &crc);
+            exit_code = tmp_code != 0 ? tmp_code : exit_code;
             fclose(input);
         }
 

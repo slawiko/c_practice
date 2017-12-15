@@ -4,7 +4,7 @@
 
 #include "calculate.h"
 
-uLong calculate(FILE* input) {
+int calculate(FILE* input, struct file_checksum* crc) {
     const uInt buffer_length = 10000;
     uInt tmp_buf_len;
     Bytef* buffer = (Bytef*) malloc(buffer_length * sizeof(Bytef));
@@ -12,12 +12,12 @@ uLong calculate(FILE* input) {
         return 1;
     }
 
-    uLong crc = crc32(0L, Z_NULL, 0);
+    crc->checksum = crc32(0L, Z_NULL, 0);
 
     while ((tmp_buf_len = fread(buffer, 1, buffer_length, input)) > 0) {
-        crc = crc32(crc, buffer, tmp_buf_len);
+        crc->checksum = crc32(crc->checksum, buffer, tmp_buf_len);
     }
 
     free(buffer);
-    return crc;
+    return 0;
 }
