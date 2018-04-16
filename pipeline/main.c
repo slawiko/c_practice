@@ -13,19 +13,53 @@ void free_args(char*** args, int n) {
     free(args);
 }
 
+void exit_save(int code, char*** args, int n) {
+    free_args(args, n);
+    exit(code);
+}
+
+void close_exit_safe(int* fds, int size, char*** args, int n) {
+    int exit_code = 0;
+    for (int i = 0; i < size; ++i) {
+        if (close(fds[i]) < 0) {
+            exit_code = -1;
+        }
+    }
+    if (exit_code < 0) {
+        perror("close error\n");
+
+        exit_save(1, args, n);
+    }
+}
+
+void dup2_safe(int oldfd, int newfd, char*** args, int n) {
+    if (dup2(oldfd, newfd) < 0) {
+        perror("dup2 error\n");
+
+        int fds[] = { oldfd, newfd };
+        close_exit_safe(fds, 2, args, n);
+    }
+}
+
 int main(int argc, char** argv) {
+    if (argc == 1) {
+        fprintf(stderr, "Invalid argument\n");
+        printf("This program works like pipe in bash\n");
+
+        exit(2);    }
+
     char*** ARGS = malloc(sizeof(char**) * argc);
     if (ARGS == NULL) {
-        fprintf(stderr, "Error during memory allocation");
-        return 1;
+        fprintf(stderr, "Error during memory allocation\n");
+        exit(1);
     }
 
     ARGS[0] = malloc(sizeof(char*) * argc);
     if (ARGS[0] == NULL) {
-        fprintf(stderr, "Error during memory allocation");
+        fprintf(stderr, "Error during memory allocation\n");
 
         free(ARGS);
-        return 1;
+        exit(1);
     }
 
     int n = 0, pos = 0;
@@ -33,20 +67,19 @@ int main(int argc, char** argv) {
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "|") == 0) {
             if (!is_in_command || i == argc - 1) {
-                fprintf(stderr, "Invalid argument");
-                // help
+                fprintf(stderr, "Invalid argument\n");
+                printf("This program works like pipe in bash\n");
 
-                free_args(ARGS, n);
-                return 2;
+                exit_save(2, ARGS, n);
             }
 
             ARGS[n][pos] = NULL;
             ARGS[++n] = malloc(sizeof(char*) * argc);
             if (ARGS[n] == NULL) {
-                fprintf(stderr, "Error during memory allocation");
+                fprintf(stderr, "Error during memory allocation\n");
 
                 free(ARGS);
-                return 1;
+                exit(1);
             }
 
             is_in_command = false;
@@ -65,19 +98,17 @@ int main(int argc, char** argv) {
     if (n == 1) {
         pid = fork();
         if (pid < 0) {
-            perror("Error while creating child process");
+            perror("Error while creating child process\n");
 
-            free_args(ARGS, n);
-            return 1;
+            exit_save(1, ARGS, n);
         }
 
         if (pid == 0) {
             char** args = ARGS[0];
             if (execvp(args[0], args) != 0) {
-                perror("Execvp error. Probably one of pipes isn't a valid command");
+                perror("execvp error. Probably one of pipes isn't a valid command\n");
 
-                free_args(ARGS, n);
-                return 1;
+                exit_save(1, ARGS, n);
             }
         } else {
             children[0] = pid;
@@ -88,41 +119,46 @@ int main(int argc, char** argv) {
 
         for (int i = 0; i < n; ++i) {
             if (i < fds_cnt && pipe(pipefds[i]) == -1) {
-                perror("Pipe error");
-                free_args(ARGS, n);
-                return 1;
+                perror("Pipe error\n");
+
+
+                exit_save(1, ARGS, n);
             }
 
             pid = fork();
-
             if (pid < 0) {
-                perror("Child process creation failed");
-                free_args(ARGS, n);
-                return 1;
+                perror("Child process creation failed\n");
+
+                close_exit_safe(pipefds[i], 2, ARGS, n);
             }
+
             if (pid == 0) {
                 char** args = ARGS[i];
                 if (i == 0) {
-                    dup2(pipefds[i][1], 1);
+                    dup2_safe(pipefds[i][1], 1, ARGS, n);
 
-                    close(pipefds[i][0]);
+                    close_exit_safe(pipefds[i], 2, ARGS, n);
                 } else if (i == fds_cnt) {
-                    dup2(pipefds[i - 1][0], 0);
+                    dup2_safe(pipefds[i - 1][0], 0, ARGS, n);
 
-                    close(pipefds[i - 1][1]);
+                    close_exit_safe(pipefds[i - 1], 2, ARGS, n);
                 } else {
-                    dup2(pipefds[i][1], 1);
-                    dup2(pipefds[i - 1][0], 0);
+                    dup2_safe(pipefds[i][1], 1, ARGS, n);
+                    dup2_safe(pipefds[i - 1][0], 0, ARGS, n);
 
-                    close(pipefds[i][0]);
-                    close(pipefds[i - 1][1]);
+                    int fds[] = { pipefds[i - 1][0], pipefds[i - 1][1], pipefds[i][0], pipefds[i][1] };
+                    close_exit_safe(fds, 4, ARGS, n);
                 }
-                execvp(args[0], args);
+
+                if (execvp(args[0], args) != 0) {
+                    perror("Execvp error. Probably one of pipes isn't a valid command\n");
+
+                    exit_save(1, ARGS, n);
+                }
             } else {
                 children[i] = pid;
                 if (i > 0) {
-                    close(pipefds[i - 1][0]);
-                    close(pipefds[i - 1][1]);
+                    close_exit_safe(pipefds[i - 1], 2, ARGS, n);
                 }
             }
         }
@@ -139,7 +175,5 @@ int main(int argc, char** argv) {
         }
     }
 
-    free_args(ARGS, n);
-
-    return exitCode;
+    exit_save(exitCode, ARGS, n);
 }
